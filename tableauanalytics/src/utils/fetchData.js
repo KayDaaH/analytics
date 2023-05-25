@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import dataMocked from "../data/mockup.json";
-import formatData from "./formatData";
+import FormatData from "./formatData";
+import axios from "axios";
 
 /**
  * Custom hook for retrieving and formatting data based on user ID.
@@ -8,7 +9,9 @@ import formatData from "./formatData";
  * @returns {[Object, boolean]} - The formatted data and error status.
  */
 export default function useData(userID) {
-  // const datas = dataMocked;
+  // data for development
+  // const rawData = dataMocked;
+
   const rawData = `http://localhost:3000/user`;
 
   const [error, setError] = useState(false);
@@ -21,46 +24,27 @@ export default function useData(userID) {
 
       try {
         // Check if using mocked data or data from API
-        if (rawData === dataMocked) {
+        if (rawData !== dataMocked) {
           // Fetch user, activity, sessions, and performance data from API
-          const user = fetch(`${rawData}/${userID}`);
-          const activity = fetch(`${rawData}/${userID}/activity`);
-          const session = fetch(`${rawData}/${userID}/average-sessions`);
-          const performance = fetch(`${rawData}/${userID}/performance`);
-          const promises = [user, activity, session, performance];
+          const responses = await Promise.all([
+            axios.get(`${rawData}/${userID}`),
+            axios.get(`${rawData}/${userID}/activity`),
+            axios.get(`${rawData}/${userID}/average-sessions`),
+            axios.get(`${rawData}/${userID}/performance`),
+          ]);
 
-          // Wait for all requests to finish
-          const responses = await Promise.all(promises);
+          for (const response of responses) {
+            const { data } = response;
+            tempData.push(data);
+          }
 
-          /**
-           * Function to retrieve data from each response.
-           */
-          const fetchData = async () => {
-            try {
-              const tempData = [];
-              const promises = responses.map(async (response) => {
-                if (!response.ok) {
-                  setError(true);
-                } else {
-                  const json = await response.json();
-                  tempData.push(json["data"]);
-                }
-              });
-              await Promise.all(promises);
-            } catch (error) {
-              setError(true);
-            }
-          };
+          // Format the data using the FormatData class
+          const formattedData = new FormatData(tempData);
 
-          // Call fetchData function to retrieve the data
-          fetchData();
-
-          // Format the data using the formatData class
-          const datas = new formatData(tempData);
-          setData(datas);
+          setData(formattedData);
         } else {
           // Search for corresponding data in mocked data
-          dataMocked.forEach((data) => {
+          rawData.forEach((data) => {
             if (data["id"] === Number(userID)) {
               tempData.push(data);
             }
@@ -68,14 +52,15 @@ export default function useData(userID) {
 
           // Check if any data is found
           if (tempData[0]["id"]) {
-            // Format the data using the formatData class
-            const datas = new formatData(tempData);
-            setData(datas);
+            const formattedData = new FormatData(tempData[0]);
+
+            // Format the data using the FormatData class
+            setData(formattedData);
           } else {
             setError(true);
           }
         }
-      } catch {
+      } catch (error) {
         setError(true);
       }
     })();
